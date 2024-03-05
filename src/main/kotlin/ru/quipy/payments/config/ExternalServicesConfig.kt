@@ -2,6 +2,7 @@ package ru.quipy.payments.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import ru.quipy.payments.executor.PaymentExecutor
 import ru.quipy.payments.logic.ExternalServiceProperties
 import ru.quipy.payments.logic.PaymentExternalServiceImpl
 import java.time.Duration
@@ -55,6 +56,6 @@ class ExternalServicesConfig {
     @Bean(PRIMARY_PAYMENT_BEAN)
     fun fastExternalService() =
         PaymentExternalServiceImpl(
-            accountProps_4,
+            PaymentExecutor(listOf(accountProps_2, accountProps_1))
         )
 }
