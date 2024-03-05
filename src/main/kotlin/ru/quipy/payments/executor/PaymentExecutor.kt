@@ -1,20 +1,38 @@
 package ru.quipy.payments.executor
 
-import ru.quipy.payments.logic.ExternalServiceProperties
+import kotlinx.coroutines.sync.Mutex
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import ru.quipy.payments.logic.PaymentExternalService
+import ru.quipy.payments.logic.PaymentService
+import ru.quipy.payments.subscribers.OrderPaymentSubscriber
+import java.util.*
 
-class PaymentExecutor(
-        private val properties: List<ExternalServiceProperties>,
-) {
-    private val serviceLoad = properties.associateWith { 0.0 }.toMutableMap()
+const val ONE_SECOND_IN_MILLIS = 1000
+
+class PaymentExecutor(paymentServices: List<PaymentExternalService>) : PaymentService {
+
+    val logger: Logger = LoggerFactory.getLogger(PaymentExecutor::class.java)
+    private val serviceLoads = paymentServices.associateWith { 0 }.toMutableMap()
     private var lastLoadReset = System.currentTimeMillis()
-    fun getOptimalProperties(): ExternalServiceProperties {
-        val now = System.currentTimeMillis()
-        if (now - lastLoadReset > 1000){
-            lastLoadReset = now
-            serviceLoad.replaceAll { _, _ -> 0.0 }
+    override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long) {
+        synchronized(serviceLoads) {
+            var optimalService = serviceLoads
+                    .filter { (property, _) -> property.getCurrentRequestsCount() < property.getProperties().parallelRequests }
+                    .minByOrNull { (property, load) -> load.toFloat() / property.getProperties().rateLimitPerSec.toFloat() }
+            if (optimalService == null)
+                optimalService = serviceLoads.minBy { (property, _) -> property.getProperties().request95thPercentileProcessingTime }
+
+            val now = System.currentTimeMillis()
+            if (now - lastLoadReset > ONE_SECOND_IN_MILLIS) {
+                lastLoadReset = now
+                serviceLoads.replaceAll { _, _ -> 0 }
+            }
+            serviceLoads[optimalService.key] = optimalService.value + 1
+            logger.warn(serviceLoads.values.joinToString())
+
+            optimalService.key.submitPaymentRequest(paymentId, amount, paymentStartedAt)
         }
-        val optimalProperties = serviceLoad.minBy { (property, load) -> load / property.rateLimitPerSec }
-        serviceLoad[optimalProperties.key] = optimalProperties.value + 1
-        return optimalProperties.key
     }
+
 }

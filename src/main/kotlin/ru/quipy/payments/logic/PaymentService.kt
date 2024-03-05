@@ -10,7 +10,10 @@ interface PaymentService {
     fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
 }
 
-interface PaymentExternalService : PaymentService
+interface PaymentExternalService : PaymentService{
+    fun getProperties() : ExternalServiceProperties
+    fun getCurrentRequestsCount() : Int
+}
 
 /**
  * Describes properties of payment-provider accounts.
