@@ -11,8 +11,9 @@ interface PaymentService {
 }
 
 interface PaymentExternalService : PaymentService{
-    fun getProperties() : ExternalServiceProperties
-    fun getCurrentRequestsCount() : Int
+    fun getRateLimitPerSec() : Long
+    fun getCost() : Int
+    fun isAvailable() : Boolean
 }
 
 /**
@@ -23,7 +24,8 @@ data class ExternalServiceProperties(
     val accountName: String,
     val parallelRequests: Int,
     val rateLimitPerSec: Int,
-    val request95thPercentileProcessingTime: Duration = Duration.ofSeconds(11)
+    val request95thPercentileProcessingTime: Duration = Duration.ofSeconds(11),
+    val cost: Int
 )
 
 /**

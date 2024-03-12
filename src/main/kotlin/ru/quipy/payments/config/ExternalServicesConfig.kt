@@ -23,6 +23,7 @@ class ExternalServicesConfig {
             parallelRequests = 10000,
             rateLimitPerSec = 100,
             request95thPercentileProcessingTime = Duration.ofMillis(1000),
+            cost = 100
         )
 
         private val accountProps_2 = ExternalServiceProperties(
@@ -32,6 +33,7 @@ class ExternalServicesConfig {
             parallelRequests = 100,
             rateLimitPerSec = 30,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 70
         )
 
         private val accountProps_3 = ExternalServiceProperties(
@@ -41,6 +43,7 @@ class ExternalServicesConfig {
             parallelRequests = 30,
             rateLimitPerSec = 8,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 40
         )
 
         // Call costs 30
@@ -50,6 +53,7 @@ class ExternalServicesConfig {
             parallelRequests = 8,
             rateLimitPerSec = 5,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 30
         )
     }
 

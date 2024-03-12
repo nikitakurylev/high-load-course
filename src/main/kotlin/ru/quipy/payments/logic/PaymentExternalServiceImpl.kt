@@ -11,12 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
 import java.io.IOException
-import java.net.SocketTimeoutException
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.min
 
 
 // Advice: always treat time as a Duration
@@ -35,9 +34,11 @@ class PaymentExternalServiceImpl(
 
     private val serviceName = properties.serviceName
     private val accountName = properties.accountName
-    private val requestAverageProcessingTime = properties.request95thPercentileProcessingTime
-    private val rateLimitPerSec = properties.rateLimitPerSec
+    private val requestProcessingTime = properties.request95thPercentileProcessingTime
+    private val rateLimitPerSec = min(properties.rateLimitPerSec.toLong(),
+        properties.parallelRequests * 1000 / properties.request95thPercentileProcessingTime.toMillis())
     private val parallelRequests = properties.parallelRequests
+    private val cost = properties.cost
 
     @Autowired
     private lateinit var paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>
@@ -46,21 +47,27 @@ class PaymentExternalServiceImpl(
     private var currentRequestsCount = AtomicInteger(0);
 
     private val client = OkHttpClient.Builder().run {
-        connectTimeout(paymentOperationTimeout.toMillis(), TimeUnit.MILLISECONDS)
         dispatcher(Dispatcher(httpClientExecutor))
+        connectTimeout(requestProcessingTime)
+        readTimeout(requestProcessingTime)
         build()
     }
 
-    override fun getProperties(): ExternalServiceProperties {
-        return properties
+    override fun getRateLimitPerSec(): Long {
+        return rateLimitPerSec
     }
 
-    override fun getCurrentRequestsCount(): Int {
-        return currentRequestsCount.get()
+    override fun getCost(): Int {
+        return cost
+    }
+
+    override fun isAvailable(): Boolean {
+        return currentRequestsCount.get() < parallelRequests
     }
 
     override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long) {
-        logger.warn("[$accountName] Submitting payment request for payment $paymentId. Already passed: ${now() - paymentStartedAt} ms")
+        val timePassed = now() - paymentStartedAt;
+        logger.warn("[$accountName] Submitting payment request for payment $paymentId. Already passed: $timePassed ms")
 
         val transactionId = UUID.randomUUID()
         logger.info("[$accountName] Submit for $paymentId , txId: $transactionId")
@@ -69,6 +76,15 @@ class PaymentExternalServiceImpl(
         // Это требуется сделать ВО ВСЕХ СЛУЧАЯХ, поскольку эта информация используется сервисом тестирования.
         paymentESService.update(paymentId) {
             it.logSubmission(success = true, transactionId, now(), Duration.ofMillis(now() - paymentStartedAt))
+        }
+
+        if (timePassed > paymentOperationTimeout.toMillis()) {
+            logger.error("[$accountName] Payment failed for txId: $transactionId, payment: $paymentId", "Timeout")
+
+            paymentESService.update(paymentId) {
+                it.logProcessing(false, now(), transactionId, reason = "Timeout")
+            }
+            return
         }
 
         val request = Request.Builder().run {
@@ -91,11 +107,11 @@ class PaymentExternalServiceImpl(
                 val body = try {
                     mapper.readValue(response.body?.string(), ExternalSysResponse::class.java)
                 } catch (e: Exception) {
-                    logger.error("[$accountName] [$requestsCount] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
+                    logger.error("[$accountName] [$requestsCount/$parallelRequests] [ERROR] Payment processed for txId: $transactionId, payment: $paymentId, result code: ${response.code}, reason: ${response.body?.string()}")
                     ExternalSysResponse(false, e.message)
                 }
 
-                logger.warn("[$accountName] [$requestsCount] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}")
+                logger.warn("[$accountName] [$requestsCount/$parallelRequests] Payment processed for txId: $transactionId, payment: $paymentId, succeeded: ${body.result}, message: ${body.message}")
 
                 // Здесь мы обновляем состояние оплаты в зависимости от результата в базе данных оплат.
                 // Это требуется сделать ВО ВСЕХ ИСХОДАХ (успешная оплата / неуспешная / ошибочная ситуация)
