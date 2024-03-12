@@ -15,26 +15,23 @@ class PaymentExecutor(paymentServices: List<PaymentExternalService>) : PaymentSe
     private var lastLoadReset = System.currentTimeMillis()
     override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long) {
         synchronized(serviceLoads) {
-            while (true) {
+            var optimalService: Map.Entry<PaymentExternalService, Int>?
+            do {
                 val now = System.currentTimeMillis()
                 if (now - lastLoadReset > ONE_SECOND_IN_MILLIS) {
                     lastLoadReset = now
                     serviceLoads.replaceAll { _, _ -> 0 }
                 }
 
-                val optimalService = serviceLoads
+                optimalService = serviceLoads
                     .filter { (service, load) -> load <= service.getRateLimitPerSec() && service.isAvailable() }
                     .minByOrNull { (service, _) -> service.getCost() }
-                if (optimalService == null) {
-                    continue
-                }
+            } while (optimalService == null)
 
-                serviceLoads[optimalService.key] = optimalService.value + 1
-                logger.warn(serviceLoads.values.joinToString())
+            serviceLoads[optimalService.key] = optimalService.value + 1
+            logger.warn(serviceLoads.values.joinToString())
 
-                optimalService.key.submitPaymentRequest(paymentId, amount, paymentStartedAt)
-                break
-            }
+            optimalService.key.submitPaymentRequest(paymentId, amount, paymentStartedAt)
         }
     }
 }

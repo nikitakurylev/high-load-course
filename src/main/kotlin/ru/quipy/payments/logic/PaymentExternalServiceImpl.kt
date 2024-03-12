@@ -36,7 +36,7 @@ class PaymentExternalServiceImpl(
     private val accountName = properties.accountName
     private val requestProcessingTime = properties.request95thPercentileProcessingTime
     private val rateLimitPerSec = min(properties.rateLimitPerSec.toLong(),
-        properties.parallelRequests * 1000 / properties.request95thPercentileProcessingTime.toMillis())
+        properties.parallelRequests * 500 / properties.request95thPercentileProcessingTime.toMillis())
     private val parallelRequests = properties.parallelRequests
     private val cost = properties.cost
 
