@@ -17,13 +17,17 @@ import ru.quipy.payments.logic.create
 import ru.quipy.streams.AggregateSubscriptionsManager
 import ru.quipy.streams.annotation.RetryConf
 import ru.quipy.streams.annotation.RetryFailedStrategy
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import javax.annotation.PostConstruct
 
 @Service
 class OrderPaymentSubscriber {
 
+    val paymentOperationTimeout = Duration.ofSeconds(80)
     val logger: Logger = LoggerFactory.getLogger(OrderPaymentSubscriber::class.java)
 
     @Autowired
@@ -42,7 +46,7 @@ class OrderPaymentSubscriber {
     fun init() {
         subscriptionsManager.createSubscriber(OrderAggregate::class, "payments:order-subscriber", retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)) {
             `when`(OrderPaymentStartedEvent::class) { event ->
-                paymentExecutor.submit {
+                val future = paymentExecutor.submit {
                     val createdEvent = paymentESService.create {
                         it.create(
                             event.paymentId,
@@ -53,6 +57,13 @@ class OrderPaymentSubscriber {
                     logger.info("Payment ${createdEvent.paymentId} for order ${event.orderId} created.")
 
                     paymentService.submitPaymentRequest(createdEvent.paymentId, event.amount, event.createdAt)
+                }
+
+                try {
+                    future.get(paymentOperationTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                } catch (e : TimeoutException) {
+                    paymentService.submitError(event.paymentId, event.amount, event.createdAt)
+                    future.cancel(true)
                 }
             }
         }

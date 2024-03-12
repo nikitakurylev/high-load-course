@@ -8,9 +8,11 @@ interface PaymentService {
      * Submit payment request to external service.
      */
     fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
+    fun submitError(paymentId: UUID, amount: Int, paymentStartedAt: Long)
 }
 
-interface PaymentExternalService : PaymentService{
+interface PaymentExternalService {
+    fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
     fun getRateLimitPerSec() : Long
     fun getCost() : Int
     fun isAvailable() : Boolean
