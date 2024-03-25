@@ -2,10 +2,7 @@ package ru.quipy.payments.logic
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import okhttp3.Dispatcher
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
+import okhttp3.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import ru.quipy.core.EventSourcingService
@@ -50,6 +47,7 @@ class PaymentExternalServiceImpl(
         dispatcher(Dispatcher(httpClientExecutor))
         connectTimeout(requestProcessingTime)
         readTimeout(requestProcessingTime)
+        protocols(Collections.singletonList(Protocol.H2_PRIOR_KNOWLEDGE))
         build()
     }
 
@@ -78,8 +76,8 @@ class PaymentExternalServiceImpl(
             it.logSubmission(success = true, transactionId, now(), Duration.ofMillis(now() - paymentStartedAt))
         }
 
-        if (timePassed > paymentOperationTimeout.toMillis()) {
-            logger.error("[$accountName] Payment failed for txId: $transactionId, payment: $paymentId", "Timeout")
+        if (timePassed + requestProcessingTime.toMillis() > paymentOperationTimeout.toMillis()) {
+            logger.error("[$accountName] Payment rejected for txId: $transactionId, payment: $paymentId", "Timeout")
 
             paymentESService.update(paymentId) {
                 it.logProcessing(false, now(), transactionId, reason = "Timeout")

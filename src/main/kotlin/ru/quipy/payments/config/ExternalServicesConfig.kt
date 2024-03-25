@@ -42,7 +42,7 @@ class ExternalServicesConfig {
             "default-3",
             parallelRequests = 30,
             rateLimitPerSec = 8,
-            request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            request95thPercentileProcessingTime = Duration.ofMillis(20_000),
             cost = 40
         )
 
@@ -52,7 +52,7 @@ class ExternalServicesConfig {
             "default-4",
             parallelRequests = 8,
             rateLimitPerSec = 5,
-            request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            request95thPercentileProcessingTime = Duration.ofMillis(20_000),
             cost = 30
         )
     }
@@ -60,7 +60,8 @@ class ExternalServicesConfig {
     @Bean(PRIMARY_PAYMENT_BEAN)
     fun fastExternalService() =
         PaymentExecutor(listOf(
-                paymentService1(),
+                paymentService4(),
+                paymentService3(),
                 paymentService2()
         ))
 
@@ -75,4 +76,16 @@ class ExternalServicesConfig {
             PaymentExternalServiceImpl(
                     accountProps_2,
             )
+
+    @Bean("PAYMENT_BEAN_3")
+    fun paymentService3() =
+        PaymentExternalServiceImpl(
+            accountProps_3,
+        )
+
+    @Bean("PAYMENT_BEAN_4")
+    fun paymentService4() =
+        PaymentExternalServiceImpl(
+            accountProps_4,
+        )
 }
