@@ -19,9 +19,11 @@ import ru.quipy.streams.annotation.RetryConf
 import ru.quipy.streams.annotation.RetryFailedStrategy
 import java.time.Duration
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.function.BiConsumer
 import javax.annotation.PostConstruct
 
 @Service
@@ -44,9 +46,13 @@ class OrderPaymentSubscriber {
 
     @PostConstruct
     fun init() {
-        subscriptionsManager.createSubscriber(OrderAggregate::class, "payments:order-subscriber", retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)) {
+        subscriptionsManager.createSubscriber(
+            OrderAggregate::class,
+            "payments:order-subscriber",
+            retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)
+        ) {
             `when`(OrderPaymentStartedEvent::class) { event ->
-                val future = paymentExecutor.submit {
+                CompletableFuture.supplyAsync({
                     val createdEvent = paymentESService.create {
                         it.create(
                             event.paymentId,
@@ -57,14 +63,11 @@ class OrderPaymentSubscriber {
                     logger.info("Payment ${createdEvent.paymentId} for order ${event.orderId} created.")
 
                     paymentService.submitPaymentRequest(createdEvent.paymentId, event.amount, event.createdAt)
-                }
-
-                try {
-                    future.get(paymentOperationTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                } catch (e : TimeoutException) {
-                    paymentService.submitError(event.paymentId, event.amount, event.createdAt)
-                    future.cancel(true)
-                }
+                }, paymentExecutor).orTimeout(paymentOperationTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                    .whenComplete { _, ex ->
+                        if (ex != null)
+                            paymentService.submitError(event.paymentId, event.amount, event.createdAt)
+                    }
             }
         }
     }

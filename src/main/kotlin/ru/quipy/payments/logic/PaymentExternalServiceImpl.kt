@@ -11,6 +11,7 @@ import java.io.IOException
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
@@ -43,11 +44,13 @@ class PaymentExternalServiceImpl(
     private val httpClientExecutor = Executors.newFixedThreadPool(parallelRequests)
     private var currentRequestsCount = AtomicInteger(0);
 
+    private val connectionPool = ConnectionPool(parallelRequests, requestProcessingTime.toMillis(), TimeUnit.MILLISECONDS)
     private val client = OkHttpClient.Builder().run {
         dispatcher(Dispatcher(httpClientExecutor))
         connectTimeout(requestProcessingTime)
         readTimeout(requestProcessingTime)
         protocols(Collections.singletonList(Protocol.H2_PRIOR_KNOWLEDGE))
+        connectionPool(connectionPool)
         build()
     }
 
