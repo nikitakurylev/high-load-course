@@ -12,10 +12,9 @@ interface PaymentService {
 }
 
 interface PaymentExternalService {
-    fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
-    fun getRateLimitPerSec() : Long
+    fun enqueuePaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
     fun getCost() : Int
-    fun isAvailable() : Boolean
+    fun getQueueTime() : Float
 }
 
 /**

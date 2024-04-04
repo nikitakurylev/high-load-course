@@ -12,6 +12,7 @@ import ru.quipy.orders.api.OrderPaymentStartedEvent
 import ru.quipy.payments.api.PaymentAggregate
 import ru.quipy.payments.config.ExternalServicesConfig
 import ru.quipy.payments.logic.PaymentAggregateState
+import ru.quipy.payments.logic.PaymentExternalServiceImpl
 import ru.quipy.payments.logic.PaymentService
 import ru.quipy.payments.logic.create
 import ru.quipy.streams.AggregateSubscriptionsManager
@@ -29,7 +30,6 @@ import javax.annotation.PostConstruct
 @Service
 class OrderPaymentSubscriber {
 
-    val paymentOperationTimeout = Duration.ofSeconds(80)
     val logger: Logger = LoggerFactory.getLogger(OrderPaymentSubscriber::class.java)
 
     @Autowired
@@ -52,7 +52,7 @@ class OrderPaymentSubscriber {
             retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)
         ) {
             `when`(OrderPaymentStartedEvent::class) { event ->
-                CompletableFuture.supplyAsync({
+                paymentExecutor.submit {
                     val createdEvent = paymentESService.create {
                         it.create(
                             event.paymentId,
@@ -63,11 +63,7 @@ class OrderPaymentSubscriber {
                     logger.info("Payment ${createdEvent.paymentId} for order ${event.orderId} created.")
 
                     paymentService.submitPaymentRequest(createdEvent.paymentId, event.amount, event.createdAt)
-                }, paymentExecutor).orTimeout(paymentOperationTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                    .whenComplete { _, ex ->
-                        if (ex != null)
-                            paymentService.submitError(event.paymentId, event.amount, event.createdAt)
-                    }
+                }
             }
         }
     }

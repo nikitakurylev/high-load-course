@@ -22,7 +22,7 @@ class ExternalServicesConfig {
             "default-1",
             parallelRequests = 10000,
             rateLimitPerSec = 100,
-            request95thPercentileProcessingTime = Duration.ofMillis(2000),
+            request95thPercentileProcessingTime = Duration.ofMillis(1000),
             cost = 100
         )
 
@@ -32,7 +32,7 @@ class ExternalServicesConfig {
             "default-2",
             parallelRequests = 100,
             rateLimitPerSec = 30,
-            request95thPercentileProcessingTime = Duration.ofMillis(20_000),
+            request95thPercentileProcessingTime = Duration.ofMillis(10_000),
             cost = 70
         )
 
@@ -42,7 +42,7 @@ class ExternalServicesConfig {
             "default-3",
             parallelRequests = 30,
             rateLimitPerSec = 8,
-            request95thPercentileProcessingTime = Duration.ofMillis(20_000),
+            request95thPercentileProcessingTime = Duration.ofMillis(10_000),
             cost = 40
         )
 
@@ -52,7 +52,7 @@ class ExternalServicesConfig {
             "default-4",
             parallelRequests = 8,
             rateLimitPerSec = 5,
-            request95thPercentileProcessingTime = Duration.ofMillis(20_000),
+            request95thPercentileProcessingTime = Duration.ofMillis(10_000),
             cost = 30
         )
     }

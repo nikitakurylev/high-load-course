@@ -6,39 +6,27 @@ import org.springframework.beans.factory.annotation.Autowired
 import ru.quipy.core.EventSourcingService
 import ru.quipy.payments.api.PaymentAggregate
 import ru.quipy.payments.logic.*
+import ru.quipy.payments.logic.PaymentExternalServiceImpl.Companion.paymentOperationTimeout
 import java.time.Duration
 import java.util.*
 
-const val ONE_SECOND_IN_MILLIS: Long = 1000
-
-class PaymentExecutor(paymentServices: List<PaymentExternalService>) : PaymentService {
+class PaymentExecutor(private val paymentServices: List<PaymentExternalService>) : PaymentService {
 
     val logger: Logger = LoggerFactory.getLogger(PaymentExecutor::class.java)
 
     @Autowired
     private lateinit var paymentESService: EventSourcingService<UUID, PaymentAggregate, PaymentAggregateState>
-    private val serviceLoads = paymentServices.associateWith { 0 }.toMutableMap()
-    private var lastLoadReset = System.currentTimeMillis()
     override fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long) {
-        synchronized(serviceLoads) {
-            var optimalService: Map.Entry<PaymentExternalService, Int>?
-            do {
-                val now = System.currentTimeMillis()
-                if (now - lastLoadReset > ONE_SECOND_IN_MILLIS) {
-                    lastLoadReset = now
-                    serviceLoads.replaceAll { _, _ -> 0 }
-                }
+        val optimalService = paymentServices
+            .filter { service -> now() - paymentStartedAt + service.getQueueTime() * 1000 < paymentOperationTimeout.toMillis() }
+            .minByOrNull { service -> service.getCost() }
 
-                optimalService = serviceLoads
-                    .filter { (service, load) -> load <= service.getRateLimitPerSec() && service.isAvailable() }
-                    .minByOrNull { (service, _) -> service.getCost() }
-            } while (optimalService == null)
-
-            serviceLoads[optimalService.key] = optimalService.value + 1
-            logger.warn(serviceLoads.values.joinToString())
-
-            optimalService.key.submitPaymentRequest(paymentId, amount, paymentStartedAt)
+        if (optimalService == null) {
+            submitError(paymentId, amount, paymentStartedAt)
+            return
         }
+
+        optimalService.enqueuePaymentRequest(paymentId, amount, paymentStartedAt)
     }
 
     override fun submitError(paymentId: UUID, amount: Int, paymentStartedAt: Long) {
