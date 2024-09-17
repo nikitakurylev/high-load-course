@@ -2,6 +2,7 @@ package ru.quipy.payments.config
 
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import ru.quipy.payments.executor.PaymentExecutor
 import ru.quipy.payments.logic.ExternalServiceProperties
 import ru.quipy.payments.logic.PaymentExternalServiceImpl
 import java.time.Duration
@@ -22,6 +23,7 @@ class ExternalServicesConfig {
             parallelRequests = 10000,
             rateLimitPerSec = 100,
             request95thPercentileProcessingTime = Duration.ofMillis(1000),
+            cost = 100
         )
 
         private val accountProps_2 = ExternalServiceProperties(
@@ -31,6 +33,7 @@ class ExternalServicesConfig {
             parallelRequests = 100,
             rateLimitPerSec = 30,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 70
         )
 
         private val accountProps_3 = ExternalServiceProperties(
@@ -40,6 +43,7 @@ class ExternalServicesConfig {
             parallelRequests = 30,
             rateLimitPerSec = 8,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 40
         )
 
         // Call costs 30
@@ -49,11 +53,38 @@ class ExternalServicesConfig {
             parallelRequests = 8,
             rateLimitPerSec = 5,
             request95thPercentileProcessingTime = Duration.ofMillis(10_000),
+            cost = 30
         )
     }
 
     @Bean(PRIMARY_PAYMENT_BEAN)
     fun fastExternalService() =
+        PaymentExecutor(listOf(
+                paymentService4(),
+                paymentService3(),
+                paymentService2()
+        ))
+
+    @Bean("PAYMENT_BEAN_1")
+    fun paymentService1() =
+            PaymentExternalServiceImpl(
+                    accountProps_1,
+        )
+
+    @Bean("PAYMENT_BEAN_2")
+    fun paymentService2() =
+            PaymentExternalServiceImpl(
+                    accountProps_2,
+            )
+
+    @Bean("PAYMENT_BEAN_3")
+    fun paymentService3() =
+        PaymentExternalServiceImpl(
+            accountProps_3,
+        )
+
+    @Bean("PAYMENT_BEAN_4")
+    fun paymentService4() =
         PaymentExternalServiceImpl(
             accountProps_4,
         )

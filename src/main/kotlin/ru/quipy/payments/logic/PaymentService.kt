@@ -8,9 +8,14 @@ interface PaymentService {
      * Submit payment request to external service.
      */
     fun submitPaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
+    fun submitError(paymentId: UUID, amount: Int, paymentStartedAt: Long)
 }
 
-interface PaymentExternalService : PaymentService
+interface PaymentExternalService {
+    fun enqueuePaymentRequest(paymentId: UUID, amount: Int, paymentStartedAt: Long)
+    fun getCost() : Int
+    fun getQueueTime() : Float
+}
 
 /**
  * Describes properties of payment-provider accounts.
@@ -20,7 +25,8 @@ data class ExternalServiceProperties(
     val accountName: String,
     val parallelRequests: Int,
     val rateLimitPerSec: Int,
-    val request95thPercentileProcessingTime: Duration = Duration.ofSeconds(11)
+    val request95thPercentileProcessingTime: Duration = Duration.ofSeconds(11),
+    val cost: Int
 )
 
 /**

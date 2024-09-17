@@ -12,13 +12,19 @@ import ru.quipy.orders.api.OrderPaymentStartedEvent
 import ru.quipy.payments.api.PaymentAggregate
 import ru.quipy.payments.config.ExternalServicesConfig
 import ru.quipy.payments.logic.PaymentAggregateState
+import ru.quipy.payments.logic.PaymentExternalServiceImpl
 import ru.quipy.payments.logic.PaymentService
 import ru.quipy.payments.logic.create
 import ru.quipy.streams.AggregateSubscriptionsManager
 import ru.quipy.streams.annotation.RetryConf
 import ru.quipy.streams.annotation.RetryFailedStrategy
+import java.time.Duration
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import java.util.function.BiConsumer
 import javax.annotation.PostConstruct
 
 @Service
@@ -40,7 +46,11 @@ class OrderPaymentSubscriber {
 
     @PostConstruct
     fun init() {
-        subscriptionsManager.createSubscriber(OrderAggregate::class, "payments:order-subscriber", retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)) {
+        subscriptionsManager.createSubscriber(
+            OrderAggregate::class,
+            "payments:order-subscriber",
+            retryConf = RetryConf(1, RetryFailedStrategy.SKIP_EVENT)
+        ) {
             `when`(OrderPaymentStartedEvent::class) { event ->
                 paymentExecutor.submit {
                     val createdEvent = paymentESService.create {
